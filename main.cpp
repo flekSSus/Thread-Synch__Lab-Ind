@@ -1,8 +1,9 @@
 #include<iostream>
 #include<pthread.h>
-#include<queue>
+#include<deque>
 #include<vector>
 #include<unistd.h>
+#include<algorithm>
 
 struct Order
 {
@@ -14,18 +15,20 @@ struct Order
 
     std::string GetId(){ return id_; }
 
+    bool operator==(const Order& rhs){ return this->id_ == rhs.id_; }
+
     friend std::ostream& operator<<(std::ostream& os,const Order& obj)
     {
         os<<"\nName: "<<obj.id_<<"  Price: "<<obj.price_<<'\n';
         return os;
     }
+
 };
 
 
 
-std::queue<Order> gOrders;
+std::deque<Order> gOrders;
 std::vector<std::pair<Order,double>> gStorage;
-std::vector<pthread_t*> gThreads;
 
 pthread_mutex_t mtxStream;
 pthread_mutex_t mtxCommon;
@@ -35,14 +38,13 @@ void* CreateOrder(void* pOrderName)
 {
 
     std::string orderName(*static_cast<std::string*>(pOrderName));
-    std::cout<<"  "<<orderName<<"   ";
 
     pthread_mutex_lock(&mtxCommon);
     
     for(auto& i: gStorage)
         if(i.first.GetId()==orderName && i.second>0)
         {
-            gOrders.push(i.first);    
+            gOrders.push_front(i.first);    
             --i.second;
             pthread_mutex_unlock(&mtxCommon);
             return nullptr;
@@ -53,6 +55,34 @@ void* CreateOrder(void* pOrderName)
     pthread_mutex_lock(&mtxStream);
     std::cout<<"There is no such item in storage\n";
     pthread_mutex_unlock(&mtxStream);
+
+    return nullptr;
+}
+
+void* RemoveOrder(void* pOrderName)
+{
+    
+    std::string orderName(*static_cast<std::string*>(pOrderName));
+
+    pthread_mutex_lock(&mtxCommon);
+    
+    auto itFind(std::find(gOrders.begin(),gOrders.end(),Order(orderName,0)));
+    if(itFind==gOrders.end())
+    {
+        pthread_mutex_lock(&mtxStream);
+        std::cout<<"There is no such item in storage\n";
+        pthread_mutex_unlock(&mtxStream);
+    }
+    else
+    {
+        for(auto& i: gStorage)
+            if(i.first.GetId()==orderName)
+                ++i.second;
+        gOrders.erase(itFind);
+    }
+
+    
+    pthread_mutex_unlock(&mtxCommon);
 
     return nullptr;
 }
@@ -101,6 +131,7 @@ int main()
             }
             case 2: 
             {
+
                 std::string orderName("no-info");
 
                 std::cout << "\nEnter item name to add: ";
@@ -108,18 +139,31 @@ int main()
 
                 pthread_t orderT;
                 pthread_create(&orderT,nullptr,CreateOrder,&orderName);
-                gThreads.push_back(&orderT);
+                
+                pthread_mutex_unlock(&mtxStream);
             
                 break;
             }
             case 3: 
             {
+                std::string orderName("no-info");
+
+                std::cout << "\nEnter item name to remove: ";
+                std::cin >> orderName;
+
+                pthread_t removeT;
+                pthread_create(&removeT,nullptr,RemoveOrder,&orderName);
+
+
                 break;
             }
             case 0:
+            {
+                std::cout << "Exiting the program\n"; 
                 break;
+            }
             default:
-                std::cout << "Invalid choice. Please try again." << std::endl;
+                std::cout << "Invalid choice. Please try again\n";
 
         }
         pthread_mutex_unlock(&mtxStream);
@@ -128,9 +172,6 @@ int main()
     } 
     while (choice>0 && choice<4);
 
-    pthread_mutex_lock(&mtxStream);
-    std::cout << "Exiting the program." << std::endl;
-    pthread_mutex_unlock(&mtxStream);
 
 
     pthread_mutex_destroy(&mtxStream);
