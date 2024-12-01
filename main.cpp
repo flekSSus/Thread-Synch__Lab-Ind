@@ -1,81 +1,113 @@
 #include<iostream>
-#include<queue>
-#include<map>
 #include<pthread.h>
+#include<queue>
+#include<vector>
 #include<unistd.h>
-
 
 struct Order
 {
     std::string id_;
-    double cost_;
+    double price_;
 
     Order()=delete;
-    Order(const std::string id,double cost):id_(id),cost_(cost){}
+    Order(std::string id, double price): id_(id),price_(price){}
 
-    friend bool operator<(const Order& obj1, const Order& obj2)
+    std::string GetId(){ return id_; }
+
+    friend std::ostream& operator<<(std::ostream& os,const Order& obj)
     {
-        return obj1.id_ < obj2.id_;
+        os<<"\nName: "<<obj.id_<<"  Price: "<<obj.price_<<'\n';
+        return os;
     }
-
 };
 
 
 
-pthread_mutex_t mutexA;
-std::queue<Order> gArrOrders;
-std::vector<bool> gArrIsAvailable; 
-std::map<Order,size_t> gArrStorage={ {Order("apple",1.3),3},{Order("pants",0.3),1},
-                                    {Order("phone",10),1},{Order("keyboard",14),3} };
+std::queue<Order> gOrders;
+std::vector<std::pair<Order,double>> gStorage;
 
-void* IsAvailable(void* pArrOrders)
+pthread_mutex_t mtxStream;
+
+
+void* CreateOrder(void* pOrderName)
 {
-    pthread_mutex_lock(&mutexA);
-    
-    std::cout<<"\nStart checking availability...\n...\n";
-
-    std::queue<Order> arrOrdersCopy(gArrOrders);
-    gArrIsAvailable.resize(gArrOrders.size(),false);
-    for(size_t i(0);i<gArrIsAvailable.size();++i)
-    {
-        auto it=gArrStorage.find(arrOrdersCopy.front());
-        if( it != gArrStorage.end() && it->second>0)
-             gArrIsAvailable[i]=true;
-        arrOrdersCopy.pop();
-    }
-
-    std::cout<<"Checking was completed\n";
-    pthread_mutex_unlock(&mutexA);
-
+    std::string orderName(*static_cast<std::string*>(pOrderName));
+    for(auto& i: gStorage)
+        if(i.first.GetId()==orderName && i.second>0)
+        {
+            gOrders.push(i.first);    
+            --i.second;
+            return nullptr;
+        }
+    std::cout<<"There is no such item in storage\n";
     return nullptr;
 }
 
-int main()
+int main() 
 {
-    pthread_mutex_init(&mutexA,nullptr);
+    int choice(0);
 
-    std::string inputStr;
-    size_t countOfOrders(0);
+    pthread_mutex_init(&mtxStream,nullptr);
 
-    std::cin>>countOfOrders;
+    gStorage.push_back(std::make_pair<Order,double>(Order("apple", 1),10));
+    gStorage.push_back(std::make_pair<Order,double>(Order("phone", 12),4));
+    gStorage.push_back(std::make_pair<Order,double>(Order("plate", 4),23));
+    gStorage.push_back(std::make_pair<Order,double>(Order("eggplant", 2),1));
+    gStorage.push_back(std::make_pair<Order,double>(Order("mug", 6),0));
 
-
-    pthread_mutex_lock(&mutexA);
-    std::cout<<"\nCreating orders...\n...\n";
-    for(size_t i(0);i<countOfOrders;++i)
+    do 
     {
-        std::string tmpId;
-        double tmpCost;
-        std::cin>>tmpId>>tmpCost;
-        gArrOrders.push(Order(tmpId,tmpCost));
-    }
-    std::cout<<"Created "<<countOfOrders<<" orders\n";
-    pthread_mutex_unlock(&mutexA);
+        std::cout << "\nMenu:\n";
+        std::cout << "1. List goods\n";
+        std::cout << "2. Add order\n";
+        std::cout << "3. Remove order\n";
+        std::cout << "4. Shopping cart\n";
+        std::cout << "5. Exit\n";
+        std::cout << "Enter your choice: ";
+        std::cin >> choice;
 
+        switch (choice) 
+        {
+            case 1:
+            {
 
-    pthread_t isAvailable_t; 
-    pthread_create(&isAvailable_t,nullptr,&IsAvailable,&gArrOrders);
-    pthread_join(isAvailable_t,nullptr);
+                std::cout << "\nAll products: \n";
+                for(auto& i:gStorage)
+                    std::cout<<i.first<<"Amount: "<<i.second<<'\n';
+                std::cout<<'\n';
 
+                break;    
+            }
+            case 2: 
+            {
+                std::string orderName("no-info");
+
+                std::cout << "\nEnter item name to add: ";
+                std::cin >> orderName;
+
+                pthread_t orderT;
+                pthread_create(&orderT,nullptr,CreateOrder,&orderName);
+                pthread_join(orderT,nullptr);
+            
+                break;
+            }
+            case 3: 
+            {
+                break;
+            }
+            case 4:
+                break;
+            case 5:
+                break;
+            default:
+                std::cout << "Invalid choice. Please try again." << std::endl;
+        }
+    } 
+    while (choice!=5);
+
+    std::cout << "Exiting the program." << std::endl;
     
+    pthread_mutex_destroy(&mtxStream);
+
 }
+
