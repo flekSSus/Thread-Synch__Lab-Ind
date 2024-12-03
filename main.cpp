@@ -71,7 +71,7 @@ void* RemoveOrder(void* pOrderName)
     if(itFind==gOrders.end())
     {
         pthread_mutex_lock(&mtxStream);
-        std::cout<<"There is no such item in storage\n";
+        std::cout<<"There is no such item in order queue\n";
         pthread_mutex_unlock(&mtxStream);
     }
     else
@@ -90,9 +90,11 @@ void* RemoveOrder(void* pOrderName)
 
 void* ShowOrders(void*)
 {
+    pthread_mutex_lock(&mtxCommon);
     std::deque<Order> OrdersCopy(gOrders);
     int totalPrice(0); 
 
+    pthread_mutex_lock(&mtxStream);
     std::cout<<"\n   Your shopping cart \n";
     for(Order el(OrdersCopy.front());!OrdersCopy.empty();)
     {
@@ -101,6 +103,10 @@ void* ShowOrders(void*)
         OrdersCopy.pop_front();
     }
     std::cout<<"__________________________\n"<<"Total: "<<totalPrice<<'\n';
+    pthread_mutex_unlock(&mtxStream);
+    pthread_mutex_unlock(&mtxCommon);
+
+
     return nullptr;
 }
 
@@ -179,12 +185,13 @@ int main()
                 pthread_t showOrdersT;
                 pthread_create(&showOrdersT,nullptr,ShowOrders,nullptr);
 
-
                 break;
             }
             case 0:
             {
+
                 std::cout << "Exiting the program\n"; 
+
                 break;
             }
             default:
@@ -194,8 +201,8 @@ int main()
         pthread_mutex_unlock(&mtxStream);
         usleep(500000);
         
-    } 
-    while (true);
+    }
+    while (choice!=0);
 
 
 
