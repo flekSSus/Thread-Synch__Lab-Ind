@@ -33,6 +33,8 @@ std::vector<std::pair<Order,double>> gStorage;
 
 pthread_mutex_t mtxStream;
 pthread_mutex_t mtxCommon;
+pthread_mutex_t mtxFinish;
+pthread_cond_t condForCheque;
 
 
 void* CreateOrder(void* pOrderName)
@@ -45,7 +47,7 @@ void* CreateOrder(void* pOrderName)
     for(auto& i: gStorage)
         if(i.first.GetId()==orderName && i.second>0)
         {
-            gOrders.push_front(i.first);    
+            gOrders.push_back(i.first);    
             --i.second;
             pthread_mutex_unlock(&mtxCommon);
             return nullptr;
@@ -91,35 +93,54 @@ void* RemoveOrder(void* pOrderName)
 void* ShowOrders(void*)
 {
     pthread_mutex_lock(&mtxCommon);
+
     std::deque<Order> OrdersCopy(gOrders);
     int totalPrice(0); 
 
     pthread_mutex_lock(&mtxStream);
+    usleep(100000);
     std::cout<<"\n   Your shopping cart \n";
-    for(Order el(OrdersCopy.front());!OrdersCopy.empty();)
+    for(;!OrdersCopy.empty();)
     {
+        Order el(OrdersCopy.front());
         totalPrice+=el.GetPrice();
-        std::cout<<el.GetId()<<"\t\t"<<el.GetPrice()<<'\n';
+        std::cout<<el.GetId()<<"\t\t"<<el.GetPrice()<<"$"<<'\n';
         OrdersCopy.pop_front();
     }
     std::cout<<"__________________________\n"<<"Total: "<<totalPrice<<'\n';
     pthread_mutex_unlock(&mtxStream);
     pthread_mutex_unlock(&mtxCommon);
 
+    pthread_mutex_lock(&mtxFinish);
+    pthread_cond_signal(&condForCheque);
+    pthread_mutex_unlock(&mtxFinish);
 
     return nullptr;
 }
 
 void* FinishShopping(void*)
 {
+    pthread_mutex_lock(&mtxStream);
+
     pthread_t showOrdersT;
     pthread_create(&showOrdersT,nullptr,ShowOrders,nullptr);
+    usleep(100000);
+    pthread_mutex_unlock(&mtxStream);
 
-    for(int i(0);i<gOrders.size();++i)
+    pthread_mutex_lock(&mtxFinish);
+    pthread_cond_wait(&condForCheque,&mtxFinish);
+
+
+    pthread_mutex_lock(&mtxCommon);
+
+    while(!gOrders.empty()) 
         gOrders.pop_front();
+    pthread_mutex_unlock(&mtxCommon);
+
 
     std::cout<<"\nThanks, have a nice day!\n";
 
+    pthread_mutex_unlock(&mtxStream);
     return nullptr;
 }
 
@@ -129,6 +150,8 @@ int main()
 
     pthread_mutex_init(&mtxStream,nullptr);
     pthread_mutex_init(&mtxCommon,nullptr);
+    pthread_mutex_init(&mtxFinish,nullptr);
+    pthread_cond_init(&condForCheque,nullptr);
 
     gStorage.push_back(std::make_pair<Order,double>(Order("apple", 1),10));
     gStorage.push_back(std::make_pair<Order,double>(Order("phone", 12),4));
@@ -206,12 +229,11 @@ int main()
                 pthread_t finishShoppingT;
                 pthread_create(&finishShoppingT,nullptr,FinishShopping,nullptr);
 
+                break;
             }
             case 0:
             {
-
                 std::cout << "Exiting the program\n"; 
-
                 break;
             }
             default:
@@ -228,6 +250,8 @@ int main()
 
     pthread_mutex_destroy(&mtxStream);
     pthread_mutex_destroy(&mtxCommon);
+    pthread_mutex_destroy(&mtxFinish);
+    pthread_cond_destroy(&condForCheque);
 
 }
 
