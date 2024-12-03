@@ -110,6 +110,19 @@ void* ShowOrders(void*)
     return nullptr;
 }
 
+void* FinishShopping(void*)
+{
+    pthread_t showOrdersT;
+    pthread_create(&showOrdersT,nullptr,ShowOrders,nullptr);
+
+    for(int i(0);i<gOrders.size();++i)
+        gOrders.pop_front();
+
+    std::cout<<"\nThanks, have a nice day!\n";
+
+    return nullptr;
+}
+
 int main() 
 {
     int choice(0);
@@ -132,6 +145,7 @@ int main()
         std::cout << "2. Add order\n";
         std::cout << "3. Remove order\n";
         std::cout << "4. Shopping cart\n";
+        std::cout << "5. Finish shoping\n";
         std::cout << "0. Exit\n";
         std::cout << "Enter your choice: ";
         std::cin >> choice;
@@ -186,6 +200,12 @@ int main()
                 pthread_create(&showOrdersT,nullptr,ShowOrders,nullptr);
 
                 break;
+            }
+            case 5:
+            {
+                pthread_t finishShoppingT;
+                pthread_create(&finishShoppingT,nullptr,FinishShopping,nullptr);
+
             }
             case 0:
             {
