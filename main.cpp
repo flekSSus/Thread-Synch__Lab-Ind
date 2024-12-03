@@ -14,6 +14,7 @@ struct Order
     Order(std::string id, double price): id_(id),price_(price){}
 
     std::string GetId(){ return id_; }
+    double GetPrice(){ return price_; }
 
     bool operator==(const Order& rhs){ return this->id_ == rhs.id_; }
 
@@ -87,6 +88,22 @@ void* RemoveOrder(void* pOrderName)
     return nullptr;
 }
 
+void* ShowOrders(void*)
+{
+    std::deque<Order> OrdersCopy(gOrders);
+    int totalPrice(0); 
+
+    std::cout<<"\n   Your shopping cart \n";
+    for(Order el(OrdersCopy.front());!OrdersCopy.empty();)
+    {
+        totalPrice+=el.GetPrice();
+        std::cout<<el.GetId()<<"\t\t"<<el.GetPrice()<<'\n';
+        OrdersCopy.pop_front();
+    }
+    std::cout<<"__________________________\n"<<"Total: "<<totalPrice<<'\n';
+    return nullptr;
+}
+
 int main() 
 {
     int choice(0);
@@ -157,6 +174,14 @@ int main()
 
                 break;
             }
+            case 4:
+            {
+                pthread_t showOrdersT;
+                pthread_create(&showOrdersT,nullptr,ShowOrders,nullptr);
+
+
+                break;
+            }
             case 0:
             {
                 std::cout << "Exiting the program\n"; 
@@ -170,7 +195,7 @@ int main()
         usleep(500000);
         
     } 
-    while (choice>0 && choice<4);
+    while (true);
 
 
 
